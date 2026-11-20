@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>8-BIT GHOST BUSTER</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      image-rendering: pixelated;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000000;
+      font-family: 'Courier New', Consolas, Monaco, 'MS Gothic', 'Hiragino Kaku Gothic ProN', monospace;
+      touch-action: none;
+    }
+
+    /* 全画面化の対象となるルートコンテナ */
+    #app {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #080810;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* 16:9 (960x540) の比率を維持して拡大縮小するゲームステージ */
+    #game-wrapper {
+      position: relative;
+      width: 960px;
+      height: 540px;
+      border: 4px solid #fcfcfc;
+      box-shadow: 0 0 0 4px #000000, 0 0 0 8px #3cbcfc;
+      background: #000000;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      touch-action: none;
+    }
+
+    /* レトロCRT走査線エフェクト（操作は透過） */
+    #scanlines {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0) 0px,
+        rgba(0, 0, 0, 0) 2px,
+        rgba(0, 0, 0, 0.22) 3px,
+        rgba(0, 0, 0, 0.22) 4px
+      );
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    /* プレイ中のスコア・レベル・時間表示 (8bitアーケードHUD) */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .hud-box {
+      background: #000000;
+      border: 3px solid #fcfcfc;
+      box-shadow: 4px 4px 0 #000000;
+      padding: 6px 14px;
+      color: #fcfcfc;
+      font-size: clamp(13px, 2vw, 21px);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-shadow: 2px 2px 0 #000000;
+    }
+
+    .hud-label {
+      color: #f8b800;
+      margin-right: 6px;
+    }
+
+    .hud-label.lv {
+      color: #3cbcfc;
+    }
+
+    /* 右下のアーケード筐体風FIREボタン */
+    #fire-btn {
+      position: absolute;
+      right: 4%;
+      bottom: 6%;
+      width: 15%;
+      aspect-ratio: 1 / 1;
+      max-width: 108px;
+      min-width: 68px;
+      border-radius: 50%;
+      border: 4px solid #fcfcfc;
+      background: #d82800;
+      color: #fcfcfc;
+      font-family: inherit;
+      font-size: clamp(14px, 2.2vw, 20px);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-shadow: 2px 2px 0 #000000;
+      box-shadow: 0 6px 0 #7c0800, 0 8px 0 #000000;
+      cursor: pointer;
+      z-index: 8;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+
+    #fire-btn:active,
+    #fire-btn.pressed {
+      transform: translateY(4px);
+      background: #f83800;
+      box-shadow: 0 2px 0 #7c0800, 0 4px 0 #000000;
+    }
+
+    /* タイトル画面・ゲームオーバー画面共通オーバーレイ */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.84);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 10;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .retro-badge {
+      background: #f83800;
+      color: #fcfcfc;
+      border: 2px solid #fcfcfc;
+      padding: 3px 12px;
+      font-size: clamp(11px, 1.4vw, 14px);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      margin-bottom: 10px;
+      box-shadow: 3px 3px 0 #000000;
+    }
+
+    .retro-title {
+      font-size: clamp(26px, 5vw, 52px);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      color: #f8b800;
+      text-shadow:
+        0 4px 0 #d82800,
+        4px 4px 0 #000000,
+        -2px -2px 0 #000000;
+      margin-bottom: 16px;
+    }
+
+    .retro-gameover {
+      font-size: clamp(32px, 5.6vw, 58px);
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      color: #f83800;
+      text-shadow:
+        0 4px 0 #fcfcfc,
+        4px 6px 0 #000000;
+      margin-bottom: 18px;
+    }
+
+    /* ファミコンRPG/アーケード風の二重枠ウィンドウ */
+    .how-to-play {
+      color: #fcfcfc;
+      font-size: clamp(12px, 1.75vw, 16px);
+      font-weight: 700;
+      line-height: 1.7;
+      background: #000000;
+      border: 3px solid #fcfcfc;
+      box-shadow: inset 0 0 0 3px #3cbcfc, 4px 4px 0 #000000;
+      padding: 12px 22px;
+      margin-bottom: 24px;
+    }
+
+    .result-board {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 26px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .result-item {
+      background: #000000;
+      border: 3px solid #fcfcfc;
+      box-shadow: inset 0 0 0 3px #f8b800, 4px 4px 0 #000000;
+      padding: 10px 20px;
+      min-width: 130px;
+    }
+
+    .result-item .label {
+      display: block;
+      font-size: clamp(11px, 1.5vw, 14px);
+      font-weight: 900;
+      color: #3cbcfc;
+      margin-bottom: 6px;
+      letter-spacing: 0.1em;
+    }
+
+    .result-item .value {
+      font-size: clamp(20px, 3.2vw, 32px);
+      font-weight: 900;
+      color: #fcfcfc;
+      text-shadow: 2px 2px 0 #000000;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* 8bit角張りボタン */
+    .retro-btn {
+      padding: 12px 30px;
+      font-family: inherit;
+      font-size: clamp(15px, 2.2vw, 21px);
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      color: #000000;
+      background: #f8b800;
+      border: 3px solid #fcfcfc;
+      box-shadow: 0 5px 0 #a85000, 4px 7px 0 #000000;
+      cursor: pointer;
+    }
+
+    .retro-btn:hover {
+      background: #fcd848;
+    }
+
+    .retro-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 #a85000, 2px 3px 0 #000000;
+    }
+
+    .retro-btn.secondary {
+      background: #0058f8;
+      color: #fcfcfc;
+      box-shadow: 0 5px 0 #002888, 4px 7px 0 #000000;
+    }
+
+    .retro-btn.secondary:hover {
+      background: #3cbcfc;
+      color: #000000;
+    }
+
+    .retro-btn.retry {
+      background: #f83800;
+      color: #fcfcfc;
+      box-shadow: 0 5px 0 #881400, 4px 7px 0 #000000;
+    }
+
+    .retro-btn.retry:hover {
+      background: #ff6030;
+    }
+
+    /* 縦画面時の回転案内オーバーレイ */
+    #rotate-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      color: #fcfcfc;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      z-index: 999;
+    }
+
+    #rotate-overlay.active {
+      display: flex;
+    }
+
+    .phone-icon {
+      width: 54px;
+      height: 92px;
+      border: 4px solid #f8b800;
+      background: #101830;
+      margin-bottom: 20px;
+      box-shadow: 4px 4px 0 #d82800;
+      animation: rotateHint 1.8s steps(4) infinite;
+    }
+
+    @keyframes rotateHint {
+      0%, 20% { transform: rotate(0deg); }
+      55%, 80% { transform: rotate(-90deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    .rotate-text {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      color: #f8b800;
+      text-shadow: 2px 2px 0 #d82800;
+      margin-bottom: 10px;
+    }
+
+    .rotate-sub {
+      font-size: 14px;
+      color: #3cbcfc;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="game-wrapper">
+      <canvas id="game-canvas" width="960" height="540"></canvas>
+      <div id="scanlines"></div>
+
+      <!-- プレイ中HUD -->
+      <div id="hud" class="hidden">
+        <div class="hud-box"><span class="hud-label">TIME</span><span id="time-display">0.0</span>s</div>
+        <div class="hud-box"><span class="hud-label lv">ENEMY LV</span><span id="level-display">1</span></div>
+        <div class="hud-box"><span class="hud-label">HIT</span><span id="hit-display">0</span></div>
+      </div>
+
+      <!-- 発射ボタン -->
+      <button id="fire-btn" type="button" aria-label="FIRE">FIRE</button>
+
+      <!-- タイトル画面 -->
+      <div id="title-screen" class="overlay">
+        <div class="retro-badge">1985 ARCADE EDITION</div>
+        <h1 id="game-title" class="retro-title">8-BIT GHOST BUSTER</h1>
+        <div class="how-to-play">
+          上下ドラッグで移動 ／ 画面タップ・FIRE・SPACE で発射！<br />
+          5体撃破で「P」アイテム出現（取るとビームが2発にパワーアップ！）<br />
+          25体倒すごとに敵のレベルが上がりスピードUP！
+        </div>
+        <div class="btn-group">
+          <button id="play-btn" class="retro-btn" type="button">PLAY START</button>
+          <button id="fullscreen-btn" class="retro-btn secondary" type="button">FULL SCREEN</button>
+        </div>
+      </div>
+
+      <!-- ゲームオーバー画面 -->
+      <div id="gameover-screen" class="overlay hidden">
+        <h2 class="retro-gameover">GAME OVER</h2>
+        <div class="result-board">
+          <div class="result-item">
+            <span class="label">TIME</span>
+            <span id="result-time" class="value">0.0s</span>
+          </div>
+          <div class="result-item">
+            <span class="label">ENEMY LV</span>
+            <span id="result-level" class="value">1</span>
+          </div>
+          <div class="result-item">
+            <span class="label">HIT</span>
+            <span id="result-hit" class="value">0</span>
+          </div>
+        </div>
+        <button id="retry-btn" class="retro-btn retry" type="button">RETRY</button>
+      </div>
+    </div>
+
+    <!-- 縦画面警告 -->
+    <div id="rotate-overlay">
+      <div class="phone-icon"></div>
+      <div class="rotate-text">スマホを横にしてね</div>
+      <div class="rotate-sub">横画面にするとゲームが再開します</div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================
+    // 【CONFIG】ここを書き換えて8bitゲームを改造しよう！
+    // =========================================================
+    const CONFIG = {
+      title: "8-BIT GHOST BUSTER", // ゲームのタイトル
+      bgColorTop: "#000000",       // 宇宙背景の上側の色
+      bgColorBottom: "#081028",    // 宇宙背景の下側の色
+      playerColor: "#fcfcfc",      // 自分の戦闘機のメイン色（白）
+      playerSubColor: "#f83800",   // 自分の戦闘機のライン色（赤）
+      enemyColor: "#fcfcfc",       // お化けの体の基本色
+      enemyEyeColor: "#000000",    // お化けの目の色
+      enemyTongueColor: "#f83800", // お化けの口・舌の色
+      enemyBulletColor: "#d800cc", // お化けが撃つドット弾の色
+      enemyMoveSpeed: 190,         // お化けの初期上下移動速度（1秒あたりのピクセル数）
+      enemyShootInterval: 1.7,     // お化けが弾を撃つ初期間隔（秒）
+      enemyBulletSpeed: 420,       // お化けの弾の初期速度（1秒あたりのピクセル数）
+      maxEnemies: 4,               // 画面に同時に出るお化けの最大数
+      spawnInterval: 1.1,          // お化けが補充される間隔（秒）
+      bulletSpeed: 760,            // 自分のビームの速さ（1秒あたりのピクセル数）
+      playerFollowSpeed: 14,       // ドラッグ指への移動追従スピード
+      powerupDropEvery: 5,         // 何体お化けを倒すとパワーアップアイテムを落とすか
+      itemMoveSpeed: 170,          // パワーアップアイテムが左へ流れる速さ
+      levelUpEvery: 25,            // 何体倒すごとに敵のレベルが上がるか
+      enemySpeedGainPerLevel: 0.2, // レベルが1上がるごとの速度アップ率（0.2 = +20%）
+      soundEnabled: true           // 8bitピコピコ効果音（trueでON / falseでOFF）
+    };
+    // =========================================================
+
+    // 固定ゲーム世界サイズ (16:9)
+    const WORLD_WIDTH = 960;
+    const WORLD_HEIGHT = 540;
+
+    // DOM要素の取得
+    const appEl = document.getElementById("app");
+    const wrapperEl = document.getElementById("game-wrapper");
+    const canvas = document.getElementById("game-canvas");
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+
+    const hudEl = document.getElementById("hud");
+    const timeDisplayEl = document.getElementById("time-display");
+    const levelDisplayEl = document.getElementById("level-display");
+    const hitDisplayEl = document.getElementById("hit-display");
+    const fireBtn = document.getElementById("fire-btn");
+
+    const titleScreenEl = document.getElementById("title-screen");
+    const gameTitleEl = document.getElementById("game-title");
+    const playBtn = document.getElementById("play-btn");
+    const fullscreenBtn = document.getElementById("fullscreen-btn");
+
+    const gameoverScreenEl = document.getElementById("gameover-screen");
+    const resultTimeEl = document.getElementById("result-time");
+    const resultLevelEl = document.getElementById("result-level");
+    const resultHitEl = document.getElementById("result-hit");
+    const retryBtn = document.getElementById("retry-btn");
+
+    const rotateOverlayEl = document.getElementById("rotate-overlay");
+
+    // CONFIGのタイトルを画面に反映
+    gameTitleEl.textContent = CONFIG.title;
+    document.title = CONFIG.title;
+
+    // =========================================================
+    // 8bitピコピコ効果音エンジン (Web Audio API / 外部ファイル不要)
+    // =========================================================
+    let audioCtx = null;
+
+    function ensureAudio() {
+      if (!CONFIG.soundEnabled) return null;
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
+      return audioCtx;
+    }
+
+    function play8BitSound(type) {
+      try {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const now = ac.currentTime;
+
+        if (type === "shoot") {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = "square";
+          osc.frequency.setValueAtTime(980, now);
+          osc.frequency.exponentialRampToValueAtTime(220, now + 0.08);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start(now);
+          osc.stop(now + 0.08);
+        } else if (type === "hit") {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = "square";
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.setValueAtTime(520, now + 0.04);
+          osc.frequency.setValueAtTime(780, now + 0.08);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start(now);
+          osc.stop(now + 0.16);
+        } else if (type === "powerup") {
+          // パワーアップ取得時の8bit上昇アルペジオ
+          const notes = [440, 554.37, 659.25, 880, 1108.73];
+          notes.forEach((freq, idx) => {
+            const osc = ac.createOscillator();
+            const gain = ac.createGain();
+            osc.type = "square";
+            osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+            gain.gain.setValueAtTime(0.09, now + idx * 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.08);
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.start(now + idx * 0.05);
+            osc.stop(now + idx * 0.05 + 0.08);
+          });
+        } else if (type === "levelup") {
+          // 敵レベルアップ警告ファンファーレ
+          const notes = [330, 440, 330, 587.33];
+          notes.forEach((freq, idx) => {
+            const osc = ac.createOscillator();
+            const gain = ac.createGain();
+            osc.type = "sawtooth";
+            osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+            gain.gain.setValueAtTime(0.09, now + idx * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.1);
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.start(now + idx * 0.07);
+            osc.stop(now + idx * 0.07 + 0.1);
+          });
+        } else if (type === "start") {
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((freq, idx) => {
+            const osc = ac.createOscillator();
+            const gain = ac.createGain();
+            osc.type = "square";
+            osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+            gain.gain.setValueAtTime(0.08, now + idx * 0.06);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.09);
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.start(now + idx * 0.06);
+            osc.stop(now + idx * 0.06 + 0.09);
+          });
+        } else if (type === "gameover") {
+          const notes = [440, 392, 349.23, 261.63];
+          notes.forEach((freq, idx) => {
+            const osc = ac.createOscillator();
+            const gain = ac.createGain();
+            osc.type = "sawtooth";
+            osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+            gain.gain.setValueAtTime(0.1, now + idx * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.15);
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.start(now + idx * 0.12);
+            osc.stop(now + idx * 0.12 + 0.15);
+          });
+        }
+      } catch (e) {
+        // 音声再生エラー時は無音で継続
+      }
+    }
+
+    // =========================================================
+    // 8bit ドット絵スプライト定義（文字マップでピクセルを描画）
+    // =========================================================
+    // 自機戦闘機ドット絵 (14x10)
+    const PLAYER_SPRITE = [
+      "..R...........",
+      "..RR..........",
+      ".WWWR.........",
+      "WWWWWRR.......",
+      "CWWWWWWWRR....",
+      "WWWWWWWWWWRR..",
+      "CWWWWWWWRR....",
+      "WWWWWRR.......",
+      ".WWWR.........",
+      "..RR.........."
+    ];
+
+    // パワーアップ時（ツイン砲門付き）自機ドット絵 (14x10)
+    const PLAYER_SPRITE_POWER = [
+      "..R...........",
+      "..RR..........",
+      ".WWWRRR.......",
+      "WWWWWRR.......",
+      "CWWWWWWWRR....",
+      "WWWWWWWWWWRR..",
+      "CWWWWWWWRR....",
+      "WWWWWRR.......",
+      ".WWWRRR.......",
+      "..RR.........."
+    ];
+
+    // お化けドット絵 フレーム1 (12x12)
+    const GHOST_SPRITE_1 = [
+      "....GGGG....",
+      "..GGGGGGGG..",
+      ".GGGGGGGGGG.",
+      ".GEEGGEEGGG.",
+      ".GEEGGEEGGG.",
+      "GGGGGGGGGGGG",
+      "GGTTTGGGGGGG",
+      "GGGGGGGGGGGG",
+      ".GGGGGGGGGG.",
+      ".GGGGGGGGGG.",
+      ".GG.GGGG.GG.",
+      ".G...GG...G."
+    ];
+
+    // お化けドット絵 フレーム2（裾と手が動くアニメ） (12x12)
+    const GHOST_SPRITE_2 = [
+      "....GGGG....",
+      "..GGGGGGGG..",
+      ".GGGGGGGGGG.",
+      ".GEEGGEEGGG.",
+      ".GEEGGEEGGG.",
+      "GGGGGGGGGGGG",
+      "GGTTTGGGGGGG",
+      ".GGGGGGGGGG.",
+      "GGGGGGGGGGGG",
+      ".GGGGGGGGGG.",
+      "..GG.GG.GG..",
+      "...G.GG.G..."
+    ];
+
+    // パワーアップ「P」アイテムドット絵 (10x10)
+    const POWERUP_SPRITE = [
+      "..BBBBBB..",
+      ".BYYYYYYB.",
+      "BYYPPPPYYB",
+      "BYYP..PYYB",
+      "BYYPPPPYYB",
+      "BYYPYYYYYB",
+      "BYYPYYYYYB",
+      "BYYYYYYYYB",
+      ".BYYYYYYB.",
+      "..BBBBBB.."
+    ];
+
+    // ドット絵描画ヘルパー関数
+    function drawPixelMatrix(matrix, palette, centerX, centerY, pixelSize) {
+      const rows = matrix.length;
+      const cols = matrix[0].length;
+      const startX = Math.round(centerX - (cols * pixelSize) / 2);
+      const startY = Math.round(centerY - (rows * pixelSize) / 2);
+
+      for (let r = 0; r < rows; r++) {
+        const rowStr = matrix[r];
+        for (let c = 0; c < cols; c++) {
+          const ch = rowStr[c];
+          if (ch === "." || !palette[ch]) continue;
+          ctx.fillStyle = palette[ch];
+          ctx.fillRect(
+            startX + c * pixelSize,
+            startY + r * pixelSize,
+            pixelSize,
+            pixelSize
+          );
+        }
+      }
+    }
+
+    // ゲーム状態管理
+    let gameState = "TITLE"; // "TITLE" | "PLAYING" | "GAMEOVER"
+    let isPortrait = false;
+    let lastTimestamp = 0;
+    let globalTick = 0;
+
+    let survivalTime = 0;
+    let hitCount = 0;
+    let enemyLevel = 1;
+    let spawnTimer = 0;
+    let shootCooldown = 0;
+
+    // 自機データ
+    const player = {
+      x: 120,
+      y: WORLD_HEIGHT / 2,
+      targetY: WORLD_HEIGHT / 2,
+      width: 56,
+      height: 40,
+      shotCount: 1 // 1発（通常） -> アイテム取得で2発に変化
+    };
+
+    // エンティティ配列
+    let bullets = [];
+    let enemyBullets = [];
+    let enemies = [];
+    let items = [];
+    let particles = [];
+    let floatingTexts = [];
+    let stars = [];
+    let terrainBlocks = [];
+
+    // 入力管理（ドラッグ用PointerIDとキーボード）
+    let dragPointerId = null;
+    const keys = {
+      up: false,
+      down: false,
+      space: false
+    };
+
+    // 現在の敵レベルに応じた速度倍率を取得
+    function getEnemySpeedMultiplier() {
+      return 1 + (enemyLevel - 1) * CONFIG.enemySpeedGainPerLevel;
+    }
+
+    // 8bitフローティングテキストを追加
+    function addFloatingText(x, y, text, color) {
+      floatingTexts.push({
+        x: x,
+        y: y,
+        text: text,
+        color: color,
+        life: 1.25
+      });
+    }
+
+    // 背景のドット星＆8bit地形ブロックを初期化
+    function initStars() {
+      stars = [];
+      const starColors = ["#fcfcfc", "#3cbcfc", "#f8b800", "#f878f8"];
+      for (let i = 0; i < 65; i++) {
+        const layer = i % 3;
+        stars.push({
+          x: Math.floor(Math.random() * WORLD_WIDTH),
+          y: Math.floor(Math.random() * (WORLD_HEIGHT - 36)),
+          size: layer === 2 ? 4 : 2,
+          speed: 50 + layer * 65,
+          color: starColors[i % starColors.length]
+        });
+      }
+
+      terrainBlocks = [];
+      const blockW = 32;
+      const count = Math.ceil(WORLD_WIDTH / blockW) + 2;
+      for (let i = 0; i < count; i++) {
+        terrainBlocks.push({
+          x: i * blockW,
+          w: blockW,
+          h: (i % 3 === 0) ? 24 : 16
+        });
+      }
+    }
+
+    // 画面リサイズ & 縦横判定（16:9の枠を中央にフィットさせる）
+    function handleResize() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      isPortrait = vh > vw;
+      if (isPortrait) {
+        rotateOverlayEl.classList.add("active");
+      } else {
+        rotateOverlayEl.classList.remove("active");
+      }
+
+      const targetRatio = WORLD_WIDTH / WORLD_HEIGHT;
+      const windowRatio = vw / vh;
+      let displayWidth, displayHeight;
+
+      if (windowRatio > targetRatio) {
+        displayHeight = vh;
+        displayWidth = vh * targetRatio;
+      } else {
+        displayWidth = vw;
+        displayHeight = vw / targetRatio;
+      }
+
+      wrapperEl.style.width = `${Math.floor(displayWidth)}px`;
+      wrapperEl.style.height = `${Math.floor(displayHeight)}px`;
+    }
+
+    // Fullscreen API 対応チェックとボタン設定
+    function setupFullscreenButton() {
+      const supported = !!(
+        document.fullscreenEnabled ||
+        document.webkitFullscreenEnabled ||
+        appEl.requestFullscreen ||
+        appEl.webkitRequestFullscreen
+      );
+
+      if (!supported) {
+        fullscreenBtn.style.display = "none";
+        return;
+      }
+
+      fullscreenBtn.addEventListener("click", async () => {
+        try {
+          const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+          if (!fsElement) {
+            if (appEl.requestFullscreen) {
+              await appEl.requestFullscreen();
+            } else if (appEl.webkitRequestFullscreen) {
+              await appEl.webkitRequestFullscreen();
+            }
+          } else {
+            if (document.exitFullscreen) {
+              await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+              await document.webkitExitFullscreen();
+            }
+          }
+        } catch (err) {
+          console.warn("Fullscreen request failed:", err);
+        }
+      });
+
+      const updateFsLabel = () => {
+        const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+        fullscreenBtn.textContent = fsElement ? "EXIT FULL" : "FULL SCREEN";
+        handleResize();
+      };
+
+      document.addEventListener("fullscreenchange", updateFsLabel);
+      document.addEventListener("webkitfullscreenchange", updateFsLabel);
+    }
+
+    // 画面座標(clientX, clientY)を、表示倍率と上下の余白を考慮してゲーム世界座標(960x540)へ変換
+    function screenToGameCoords(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const topMargin = rect.top;
+      const leftMargin = rect.left;
+      const scaleX = rect.width / WORLD_WIDTH;
+      const scaleY = rect.height / WORLD_HEIGHT;
+
+      const gameX = (clientX - leftMargin) / scaleX;
+      const gameY = (clientY - topMargin) / scaleY;
+
+      return {
+        x: Math.max(0, Math.min(WORLD_WIDTH, gameX)),
+        y: Math.max(0, Math.min(WORLD_HEIGHT, gameY))
+      };
+    }
+
+    // 自機の8bitビーム発射（アイテム取得後は上下2発になる）
+    function fireBullet() {
+      if (gameState !== "PLAYING" || isPortrait) return;
+      if (shootCooldown > 0) return;
+
+      const startX = player.x + player.width * 0.55;
+
+      if (player.shotCount >= 2) {
+        // パワーアップ後：上下2発のツインビームを発射
+        bullets.push({
+          x: startX,
+          y: player.y - 10,
+          width: 24,
+          height: 6
+        });
+        bullets.push({
+          x: startX,
+          y: player.y + 10,
+          width: 24,
+          height: 6
+        });
+      } else {
+        // 通常時：1発発射
+        bullets.push({
+          x: startX,
+          y: player.y,
+          width: 24,
+          height: 6
+        });
+      }
+
+      shootCooldown = 0.13;
+      play8BitSound("shoot");
+    }
+
+    // お化けのランダム目標Y座標を取得
+    function getRandomGhostTargetY() {
+      const margin = 52;
+      return margin + Math.random() * (WORLD_HEIGHT - margin * 2 - 20);
+    }
+
+    // 敵（8bitお化け）を生成（右エリアの定位置まで入り、上下にランダム移動する）
+    function spawnEnemy() {
+      const startY = getRandomGhostTargetY();
+      const ghostColors = [CONFIG.enemyColor, "#3cbcfc", "#f878f8", "#f8b800"];
+      const bodyColor = ghostColors[Math.floor(Math.random() * ghostColors.length)];
+      const targetX = 620 + Math.random() * 260;
+      const speedMult = getEnemySpeedMultiplier();
+
+      enemies.push({
+        x: WORLD_WIDTH + 40,
+        y: startY,
+        targetX: targetX,
+        targetY: getRandomGhostTargetY(),
+        width: 48,
+        height: 48,
+        bodyColor: bodyColor,
+        baseMoveSpeed: CONFIG.enemyMoveSpeed * (0.85 + Math.random() * 0.35),
+        moveSpeed: CONFIG.enemyMoveSpeed * (0.85 + Math.random() * 0.35) * speedMult,
+        aiTimer: 0.6 + Math.random() * 1.2,
+        shootTimer: (0.9 + Math.random() * CONFIG.enemyShootInterval) / Math.min(2.2, 1 + (enemyLevel - 1) * 0.12),
+        wobblePhase: Math.random() * Math.PI * 2
+      });
+    }
+
+    // お化けが左向きに8bitドット弾を撃つ（レベルが上がると弾も速くなる）
+    function fireEnemyBullet(enemy) {
+      const bulletMult = 1 + (enemyLevel - 1) * 0.15;
+      enemyBullets.push({
+        x: enemy.x - enemy.width * 0.45,
+        y: enemy.y + 4,
+        width: 12,
+        height: 12,
+        speed: CONFIG.enemyBulletSpeed * (0.9 + Math.random() * 0.25) * bulletMult
+      });
+    }
+
+    // パワーアップアイテム「P」をドロップ
+    function spawnPowerupItem(x, y) {
+      items.push({
+        x: x,
+        y: y,
+        baseY: y,
+        width: 36,
+        height: 36,
+        speed: CONFIG.itemMoveSpeed,
+        phase: 0
+      });
+    }
+
+    // 8bitスクエア爆発パーティクル生成
+    function createExplosion(x, y, color) {
+      for (let i = 0; i < 16; i++) {
+        const angle = (Math.PI * 2 * i) / 16 + Math.random() * 0.3;
+        const speed = 90 + Math.random() * 230;
+        particles.push({
+          x: x,
+          y: y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 0.32 + Math.random() * 0.18,
+          size: (i % 2 === 0) ? 6 : 4,
+          color: (i % 3 === 0) ? "#f8b800" : color
+        });
+      }
+    }
+
+    // 矩形同士の当たり判定
+    function isColliding(a, b) {
+      return (
+        Math.abs(a.x - b.x) < (a.width + b.width) * 0.5 &&
+        Math.abs(a.y - b.y) < (a.height + b.height) * 0.5
+      );
+    }
+
+    // ゲーム開始・リトライ処理
+    function startGame() {
+      gameState = "PLAYING";
+      survivalTime = 0;
+      hitCount = 0;
+      enemyLevel = 1;
+      spawnTimer = 0.2;
+      shootCooldown = 0;
+
+      player.x = 120;
+      player.y = WORLD_HEIGHT / 2;
+      player.targetY = WORLD_HEIGHT / 2;
+      player.shotCount = 1;
+
+      bullets = [];
+      enemyBullets = [];
+      enemies = [];
+      items = [];
+      particles = [];
+      floatingTexts = [];
+      dragPointerId = null;
+
+      timeDisplayEl.textContent = "0.0";
+      levelDisplayEl.textContent = "1";
+      hitDisplayEl.textContent = "0";
+
+      titleScreenEl.classList.add("hidden");
+      gameoverScreenEl.classList.add("hidden");
+      hudEl.classList.remove("hidden");
+      fireBtn.style.display = "flex";
+
+      play8BitSound("start");
+    }
+
+    // ゲームオーバー処理
+    function triggerGameOver() {
+      gameState = "GAMEOVER";
+      dragPointerId = null;
+      createExplosion(player.x, player.y, CONFIG.playerSubColor);
+      play8BitSound("gameover");
+
+      resultTimeEl.textContent = `${survivalTime.toFixed(1)}s`;
+      resultLevelEl.textContent = `${enemyLevel}`;
+      resultHitEl.textContent = `${hitCount}`;
+
+      hudEl.classList.add("hidden");
+      fireBtn.style.display = "none";
+      gameoverScreenEl.classList.remove("hidden");
+    }
+
+    // お化け撃破時の進行判定（アイテムドロップ＆25体ごとのレベルアップ）
+    function handleEnemyDefeated(enemy) {
+      hitCount++;
+      hitDisplayEl.textContent = `${hitCount}`;
+      createExplosion(enemy.x, enemy.y, enemy.bodyColor);
+      play8BitSound("hit");
+
+      // 1. 5体お化けを倒すごとにパワーアップアイテムを落とす
+      if (hitCount % CONFIG.powerupDropEvery === 0) {
+        spawnPowerupItem(enemy.x, enemy.y);
+      }
+
+      // 2. 25体ずつ倒すと敵のレベルが上がり速度が上がる
+      const newLevel = Math.floor(hitCount / CONFIG.levelUpEvery) + 1;
+      if (newLevel > enemyLevel) {
+        enemyLevel = newLevel;
+        levelDisplayEl.textContent = `${enemyLevel}`;
+        play8BitSound("levelup");
+        addFloatingText(WORLD_WIDTH * 0.5, 110, `ENEMY LV.${enemyLevel} SPEED UP!`, "#f83800");
+
+        // すでに画面にいるお化けの移動速度も新しいレベルに合わせて更新
+        const speedMult = getEnemySpeedMultiplier();
+        for (const e of enemies) {
+          e.moveSpeed = e.baseMoveSpeed * speedMult;
+        }
+      }
+    }
+
+    // 更新処理
+    function update(dt) {
+      globalTick += dt;
+
+      // 背景のドット星は常にスクロール
+      for (const star of stars) {
+        star.x -= star.speed * dt;
+        if (star.x < 0) {
+          star.x = WORLD_WIDTH;
+          star.y = Math.floor(Math.random() * (WORLD_HEIGHT - 36));
+        }
+      }
+
+      // 下部の8bit地面ブロックをスクロール（敵レベルが上がると少し疾走感UP）
+      const groundScrollSpeed = 150 + (enemyLevel - 1) * 20;
+      for (const block of terrainBlocks) {
+        block.x -= groundScrollSpeed * dt;
+        if (block.x + block.w < 0) {
+          block.x += terrainBlocks.length * block.w;
+        }
+      }
+
+      // パーティクル更新
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+
+      // フローティングテキスト更新
+      for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i];
+        ft.y -= 28 * dt;
+        ft.life -= dt;
+        if (ft.life <= 0) {
+          floatingTexts.splice(i, 1);
+        }
+      }
+
+      if (gameState !== "PLAYING") return;
+
+      // 生存時間とクールダウン更新
+      survivalTime += dt;
+      timeDisplayEl.textContent = survivalTime.toFixed(1);
+
+      if (shootCooldown > 0) {
+        shootCooldown -= dt;
+      }
+
+      // キーボードでの上下移動・発射対応
+      const keyMoveSpeed = 480;
+      if (keys.up) {
+        player.targetY -= keyMoveSpeed * dt;
+      }
+      if (keys.down) {
+        player.targetY += keyMoveSpeed * dt;
+      }
+      if (keys.space) {
+        fireBullet();
+      }
+
+      // 自機の移動範囲制限 & 目標位置へのスムーズ追従
+      const minY = player.height * 0.7;
+      const maxY = WORLD_HEIGHT - player.height * 0.7 - 24;
+      player.targetY = Math.max(minY, Math.min(maxY, player.targetY));
+
+      const followRatio = Math.min(1, CONFIG.playerFollowSpeed * dt);
+      player.y += (player.targetY - player.y) * followRatio;
+
+      // 自機の弾の更新
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += CONFIG.bulletSpeed * dt;
+        if (b.x - b.width > WORLD_WIDTH) {
+          bullets.splice(i, 1);
+        }
+      }
+
+      // 敵（お化け）の補充（画面内の最大数まで出現させる）
+      if (enemies.length < CONFIG.maxEnemies) {
+        spawnTimer -= dt;
+        if (spawnTimer <= 0) {
+          spawnEnemy();
+          spawnTimer = CONFIG.spawnInterval;
+        }
+      }
+
+      // 自機の当たり判定ボックス
+      const playerHitbox = {
+        x: player.x,
+        y: player.y,
+        width: player.width * 0.62,
+        height: player.height * 0.56
+      };
+
+      // パワーアップアイテムの更新と取得判定
+      for (let i = items.length - 1; i >= 0; i--) {
+        const item = items[i];
+        item.x -= item.speed * dt;
+        item.phase += dt * 5;
+        item.y = item.baseY + Math.sin(item.phase) * 14;
+
+        // 画面左端に出たら削除
+        if (item.x + item.width < 0) {
+          items.splice(i, 1);
+          continue;
+        }
+
+        // 自機がアイテムを取ったら弾が2発にパワーアップ！
+        if (isColliding(playerHitbox, item)) {
+          items.splice(i, 1);
+          play8BitSound("powerup");
+          createExplosion(player.x, player.y, "#f8b800");
+
+          if (player.shotCount < 2) {
+            player.shotCount = 2;
+            addFloatingText(player.x + 20, player.y - 34, "2-WAY BEAM!", "#f8b800");
+          } else {
+            addFloatingText(player.x + 20, player.y - 34, "TWIN POWER!", "#3cbcfc");
+          }
+        }
+      }
+
+      // 敵（お化け）の更新・ランダム上下移動・弾発射・当たり判定
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
+        enemy.wobblePhase += dt * (6 + (enemyLevel - 1) * 0.8);
+
+        // 1. 登場時は右端から定位置(targetX)へスムーズに移動
+        if (enemy.x > enemy.targetX) {
+          enemy.x += (enemy.targetX - enemy.x) * Math.min(1, 5 * dt);
+        }
+
+        // 2. ランダムな目標Y座標(targetY)へ向かって上下移動
+        const dy = enemy.targetY - enemy.y;
+        if (Math.abs(dy) > 4) {
+          const step = Math.sign(dy) * enemy.moveSpeed * dt;
+          if (Math.abs(step) >= Math.abs(dy)) {
+            enemy.y = enemy.targetY;
+          } else {
+            enemy.y += step;
+          }
+        }
+
+        // 一定時間経過または目標地点に近づいたら次のランダムY座標を決める
+        enemy.aiTimer -= dt;
+        if (enemy.aiTimer <= 0 || Math.abs(dy) <= 6) {
+          enemy.targetY = getRandomGhostTargetY();
+          enemy.aiTimer = Math.max(0.35, (0.7 + Math.random() * 1.4) / Math.min(2.0, 1 + (enemyLevel - 1) * 0.15));
+        }
+
+        // 3. 一定間隔ごとに弾を撃つ
+        enemy.shootTimer -= dt;
+        if (enemy.shootTimer <= 0 && enemy.x <= WORLD_WIDTH - 20) {
+          fireEnemyBullet(enemy);
+          const intervalMult = Math.min(2.2, 1 + (enemyLevel - 1) * 0.12);
+          enemy.shootTimer = (CONFIG.enemyShootInterval * (0.75 + Math.random() * 0.5)) / intervalMult;
+        }
+
+        // 4. 自機の弾とお化けの当たり判定
+        let destroyed = false;
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          if (isColliding(bullets[j], enemy)) {
+            bullets.splice(j, 1);
+            enemies.splice(i, 1);
+            handleEnemyDefeated(enemy);
+            destroyed = true;
+            break;
+          }
+        }
+        if (destroyed) continue;
+
+        // 5. 自機とお化け本体の当たり判定
+        if (isColliding(playerHitbox, enemy)) {
+          enemies.splice(i, 1);
+          triggerGameOver();
+          return;
+        }
+      }
+
+      // お化けの弾の更新と自機との当たり判定
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const eb = enemyBullets[i];
+        eb.x -= eb.speed * dt;
+
+        // 画面左端に出たら削除
+        if (eb.x + eb.width < 0) {
+          enemyBullets.splice(i, 1);
+          continue;
+        }
+
+        // 自機にお化けの弾が当たったらゲームオーバー
+        if (isColliding(playerHitbox, eb)) {
+          enemyBullets.splice(i, 1);
+          triggerGameOver();
+          return;
+        }
+      }
+    }
+
+    // 8bitドット絵お化けの描画
+    function draw8BitGhost(enemy) {
+      const frame = Math.floor(enemy.wobblePhase * 1.5) % 2;
+      const sprite = frame === 0 ? GHOST_SPRITE_1 : GHOST_SPRITE_2;
+      const floatY = Math.round(Math.sin(enemy.wobblePhase) * 4);
+
+      const palette = {
+        G: enemy.bodyColor,
+        E: CONFIG.enemyEyeColor,
+        T: CONFIG.enemyTongueColor
+      };
+
+      drawPixelMatrix(sprite, palette, enemy.x, enemy.y + floatY, 4);
+    }
+
+    // 8bitパワーアップアイテムの描画
+    function draw8BitPowerup(item) {
+      const flash = Math.floor(globalTick * 12) % 2 === 0;
+      const palette = {
+        B: flash ? "#fcfcfc" : "#3cbcfc",
+        Y: flash ? "#f8b800" : "#f83800",
+        P: flash ? "#000000" : "#fcfcfc"
+      };
+      drawPixelMatrix(POWERUP_SPRITE, palette, item.x, item.y, 4);
+    }
+
+    // 8bitドット絵自機の描画
+    function draw8BitPlayer() {
+      const px = Math.round(player.x);
+      const py = Math.round(player.y);
+
+      // 8bit噴射炎（2フレームで点滅伸縮）
+      const flameFrame = Math.floor(globalTick * 24) % 2;
+      ctx.fillStyle = "#f83800";
+      ctx.fillRect(px - 38 - flameFrame * 8, py - 4, 10 + flameFrame * 8, 8);
+      ctx.fillStyle = "#f8b800";
+      ctx.fillRect(px - 34, py - 2, 6, 4);
+
+      // 自機スプライト描画（2発パワーアップ時はツイン砲門付きスプライト）
+      const sprite = player.shotCount >= 2 ? PLAYER_SPRITE_POWER : PLAYER_SPRITE;
+      const palette = {
+        W: CONFIG.playerColor,
+        R: CONFIG.playerSubColor,
+        C: "#3cbcfc"
+      };
+      drawPixelMatrix(sprite, palette, px, py, 4);
+    }
+
+    // 描画処理
+    function draw() {
+      // 宇宙背景
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, WORLD_HEIGHT);
+      bgGrad.addColorStop(0, CONFIG.bgColorTop);
+      bgGrad.addColorStop(1, CONFIG.bgColorBottom);
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+      // ドット星の描画（四角いピクセル）
+      for (const star of stars) {
+        ctx.fillStyle = star.color;
+        ctx.fillRect(Math.round(star.x), Math.round(star.y), star.size, star.size);
+      }
+
+      // 画面下部のレトロ8bit地形ブロック
+      for (const block of terrainBlocks) {
+        const bx = Math.round(block.x);
+        const by = WORLD_HEIGHT - block.h;
+        ctx.fillStyle = "#183878";
+        ctx.fillRect(bx, by, block.w - 2, block.h);
+        ctx.fillStyle = "#3cbcfc";
+        ctx.fillRect(bx, by, block.w - 2, 4);
+      }
+
+      // パワーアップアイテムの描画
+      for (const item of items) {
+        draw8BitPowerup(item);
+      }
+
+      // 自機の8bitレーザービーム描画
+      for (const b of bullets) {
+        const bx = Math.round(b.x - b.width / 2);
+        const by = Math.round(b.y - b.height / 2);
+        ctx.fillStyle = player.shotCount >= 2 ? "#3cbcfc" : "#f8b800";
+        ctx.fillRect(bx, by, b.width, b.height);
+        ctx.fillStyle = "#fcfcfc";
+        ctx.fillRect(bx + 6, by + 2, b.width - 8, 2);
+      }
+
+      // お化けの8bit点滅ドット弾描画
+      const bulletFlash = Math.floor(globalTick * 18) % 2 === 0;
+      for (const eb of enemyBullets) {
+        const ex = Math.round(eb.x);
+        const ey = Math.round(eb.y);
+        ctx.fillStyle = bulletFlash ? CONFIG.enemyBulletColor : "#f878f8";
+        ctx.fillRect(ex - 6, ey - 2, 12, 4);
+        ctx.fillRect(ex - 2, ey - 6, 4, 12);
+        ctx.fillStyle = "#fcfcfc";
+        ctx.fillRect(ex - 2, ey - 2, 4, 4);
+      }
+
+      // 敵（8bitお化け）の描画
+      for (const enemy of enemies) {
+        draw8BitGhost(enemy);
+      }
+
+      // 自機の描画（ゲームオーバー時は非表示）
+      if (gameState !== "GAMEOVER") {
+        draw8BitPlayer();
+      }
+
+      // 8bitスクエア爆発パーティクル描画
+      for (const p of particles) {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(Math.round(p.x - p.size / 2), Math.round(p.y - p.size / 2), p.size, p.size);
+      }
+
+      // フローティングテキスト描画（パワーアップ・レベルアップ演出）
+      ctx.save();
+      ctx.font = "900 22px 'Courier New', Consolas, monospace";
+      ctx.textAlign = "center";
+      for (const ft of floatingTexts) {
+        const tx = Math.round(ft.x);
+        const ty = Math.round(ft.y);
+        ctx.fillStyle = "#000000";
+        ctx.fillText(ft.text, tx + 2, ty + 2);
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, tx, ty);
+      }
+      ctx.restore();
+    }
+
+    // メインゲームループ
+    function gameLoop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const rawDt = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      // 縦画面中は一時停止（dtを進めない）
+      if (!isPortrait) {
+        const dt = Math.min(rawDt, 0.05);
+        update(dt);
+      }
+
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // =========================================================
+    // イベントリスナー設定（ドラッグとFIREボタンが競合しない設計）
+    // =========================================================
+
+    // 1. FIREボタン専用の操作（ドラッグとは完全に独立）
+    fireBtn.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      fireBtn.classList.add("pressed");
+      fireBullet();
+    });
+
+    const releaseFireBtn = (e) => {
+      e.stopPropagation();
+      fireBtn.classList.remove("pressed");
+    };
+    fireBtn.addEventListener("pointerup", releaseFireBtn);
+    fireBtn.addEventListener("pointercancel", releaseFireBtn);
+    fireBtn.addEventListener("pointerleave", releaseFireBtn);
+
+    // 2. キャンバス上のタッチ・ドラッグ操作（上下移動＆画面タップ発射）
+    canvas.addEventListener("pointerdown", (e) => {
+      if (gameState !== "PLAYING" || isPortrait) return;
+      e.preventDefault();
+
+      if (dragPointerId === null) {
+        dragPointerId = e.pointerId;
+        canvas.setPointerCapture(e.pointerId);
+        const pos = screenToGameCoords(e.clientX, e.clientY);
+        player.targetY = pos.y;
+      }
+
+      fireBullet();
+    });
+
+    canvas.addEventListener("pointermove", (e) => {
+      if (gameState !== "PLAYING" || isPortrait) return;
+      if (e.pointerId !== dragPointerId) return;
+      e.preventDefault();
+
+      const pos = screenToGameCoords(e.clientX, e.clientY);
+      player.targetY = pos.y;
+    });
+
+    const endCanvasDrag = (e) => {
+      if (e.pointerId === dragPointerId) {
+        dragPointerId = null;
+      }
+    };
+    canvas.addEventListener("pointerup", endCanvasDrag);
+    canvas.addEventListener("pointercancel", endCanvasDrag);
+
+    // 3. PCキーボード操作
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        keys.space = true;
+        if (gameState === "PLAYING") {
+          fireBullet();
+        }
+      } else if (e.code === "ArrowUp" || e.code === "KeyW") {
+        keys.up = true;
+      } else if (e.code === "ArrowDown" || e.code === "KeyS") {
+        keys.down = true;
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "Space") {
+        keys.space = false;
+      } else if (e.code === "ArrowUp" || e.code === "KeyW") {
+        keys.up = false;
+      } else if (e.code === "ArrowDown" || e.code === "KeyS") {
+        keys.down = false;
+      }
+    });
+
+    // 4. UIボタン操作
+    playBtn.addEventListener("click", startGame);
+    retryBtn.addEventListener("click", startGame);
+
+    // 5. リサイズ・画面向き変更監視
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+
+    // 初期化実行
+    initStars();
+    setupFullscreenButton();
+    handleResize();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>

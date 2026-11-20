@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>トムとジェリーの宇宙大追跡 - TOM'S COSMIC CHASE</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #04050d;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      color: #ffffff;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #app-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at center, #0b0e24 0%, #03040a 100%);
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    #game-stage {
+      position: relative;
+      width: 960px;
+      height: 540px;
+      box-shadow: 0 0 30px rgba(0, 243, 255, 0.25), 0 0 2px rgba(0, 243, 255, 0.8);
+      border: 1px solid rgba(0, 243, 255, 0.35);
+      overflow: hidden;
+      background-color: #070b1e;
+    }
+
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* プレイ中HUD */
+    #hud {
+      position: absolute;
+      top: 3%;
+      left: 3%;
+      right: 3%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .hud-box {
+      background: rgba(6, 12, 32, 0.72);
+      border: 1.5px solid rgba(0, 243, 255, 0.6);
+      box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
+      border-radius: 8px;
+      padding: 6px 16px;
+      font-size: clamp(14px, 2.4vw, 22px);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #e6ffff;
+      text-shadow: 0 0 8px #00f3ff;
+    }
+
+    .hud-box span {
+      color: #00f3ff;
+      margin-left: 6px;
+    }
+
+    .hud-box.hit-box {
+      border-color: rgba(255, 190, 42, 0.8);
+      box-shadow: 0 0 12px rgba(255, 170, 42, 0.4);
+    }
+
+    .hud-box.hit-box span {
+      color: #ffd04d;
+      text-shadow: 0 0 8px #ff9900;
+    }
+
+    /* 右下FIREボタン */
+    #fire-btn {
+      position: absolute;
+      right: 3.5%;
+      bottom: 5%;
+      width: 14%;
+      aspect-ratio: 1 / 1;
+      max-width: 96px;
+      min-width: 62px;
+      border-radius: 50%;
+      border: 2.5px solid #ff2a85;
+      background: radial-gradient(circle, rgba(255, 42, 133, 0.45) 0%, rgba(120, 10, 60, 0.65) 100%);
+      box-shadow: 0 0 18px rgba(255, 42, 133, 0.65), inset 0 0 12px rgba(255, 130, 190, 0.5);
+      color: #ffffff;
+      font-size: clamp(13px, 2vw, 18px);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 8px #ff2a85;
+      cursor: pointer;
+      z-index: 6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      touch-action: none;
+      transition: transform 0.06s ease, box-shadow 0.06s ease;
+    }
+
+    #fire-btn:active {
+      transform: scale(0.92);
+      background: radial-gradient(circle, rgba(255, 90, 165, 0.8) 0%, rgba(200, 20, 95, 0.85) 100%);
+      box-shadow: 0 0 28px rgba(255, 42, 133, 0.95);
+    }
+
+    /* オーバーレイ共通（タイトル・ゲームオーバー） */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(5, 8, 22, 0.78);
+      backdrop-filter: blur(3px);
+      z-index: 10;
+      padding: 4%;
+      text-align: center;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .neon-title {
+      font-size: clamp(26px, 5.2vw, 52px);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      color: #ffffff;
+      text-shadow:
+        0 0 8px #00f3ff,
+        0 0 20px #ff00ea,
+        0 0 40px #0088ff;
+      margin-bottom: 2.2%;
+    }
+
+    .neon-title.gameover-text {
+      color: #fff0f6;
+      text-shadow:
+        0 0 8px #ff2a85,
+        0 0 22px #ff2a85,
+        0 0 42px #d40055;
+    }
+
+    .how-to-play {
+      font-size: clamp(12px, 2vw, 18px);
+      line-height: 1.6;
+      color: #cceeff;
+      background: rgba(0, 243, 255, 0.08);
+      border: 1px solid rgba(0, 243, 255, 0.3);
+      border-radius: 10px;
+      padding: 1.8% 3.5%;
+      margin-bottom: 3.5%;
+      max-width: 85%;
+    }
+
+    .result-panel {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 3.8%;
+    }
+
+    .result-item {
+      background: rgba(10, 16, 40, 0.85);
+      border: 1.5px solid rgba(0, 243, 255, 0.5);
+      border-radius: 10px;
+      padding: 12px 26px;
+      min-width: 140px;
+    }
+
+    .result-label {
+      font-size: clamp(11px, 1.6vw, 14px);
+      color: #88d8ff;
+      letter-spacing: 0.12em;
+      margin-bottom: 4px;
+    }
+
+    .result-value {
+      font-size: clamp(22px, 3.6vw, 34px);
+      font-weight: 900;
+      color: #ffffff;
+      text-shadow: 0 0 10px #00f3ff;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .neon-btn {
+      padding: 12px 34px;
+      font-size: clamp(15px, 2.4vw, 22px);
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      color: #031018;
+      background: #ffea00;
+      border: 2px solid #ffea00;
+      border-radius: 999px;
+      box-shadow: 0 0 16px rgba(255, 234, 0, 0.8), 0 0 32px rgba(255, 200, 0, 0.4);
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+    }
+
+    .neon-btn:hover {
+      background: #fffb00;
+      box-shadow: 0 0 24px rgba(255, 234, 0, 1), 0 0 44px rgba(255, 200, 0, 0.6);
+    }
+
+    .neon-btn:active {
+      transform: scale(0.95);
+    }
+
+    .neon-btn.secondary {
+      color: #00f3ff;
+      background: rgba(0, 243, 255, 0.12);
+      border: 2px solid #00f3ff;
+      box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
+      font-size: clamp(13px, 1.9vw, 18px);
+      padding: 12px 24px;
+    }
+
+    .neon-btn.secondary:hover {
+      background: rgba(0, 243, 255, 0.25);
+    }
+
+    /* 縦画面警告オーバーレイ */
+    #rotate-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 6, 18, 0.96);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .rotate-icon {
+      width: 64px;
+      height: 40px;
+      border: 3px solid #00f3ff;
+      border-radius: 8px;
+      box-shadow: 0 0 16px rgba(0, 243, 255, 0.7);
+      margin-bottom: 20px;
+      animation: tiltPhone 1.8s ease-in-out infinite;
+    }
+
+    @keyframes tiltPhone {
+      0%, 100% { transform: rotate(-90deg); }
+      50% { transform: rotate(0deg); }
+    }
+
+    .rotate-message {
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+      text-shadow: 0 0 12px #00f3ff;
+      letter-spacing: 0.06em;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <div id="game-stage">
+      <canvas id="game-canvas" width="960" height="540"></canvas>
+
+      <!-- プレイ中UI -->
+      <div id="hud" class="hidden">
+        <div class="hud-box">TIME<span id="hud-time">0.0s</span></div>
+        <div class="hud-box hit-box">HIT<span id="hud-hit">0</span></div>
+      </div>
+
+      <button id="fire-btn" class="hidden" type="button" aria-label="FIRE">FIRE</button>
+
+      <!-- タイトル画面 -->
+      <div id="title-screen" class="overlay">
+        <h1 id="game-title" class="neon-title">TOM'S COSMIC CHASE</h1>
+        <p class="how-to-play">
+          宇宙船のトムを動かしてジェリーを迎え撃とう！バリア付きの強いジェリーは3発当てて撃破！<br>
+          上下ドラッグで移動 ／ 画面タップ・FIREボタン・スペースキーで星の弾を発射！
+        </p>
+        <div class="btn-group">
+          <button id="play-btn" class="neon-btn" type="button">PLAY</button>
+          <button id="fullscreen-btn" class="neon-btn secondary" type="button">FULL SCREEN</button>
+        </div>
+      </div>
+
+      <!-- ゲームオーバー画面 -->
+      <div id="gameover-screen" class="overlay hidden">
+        <h2 class="neon-title gameover-text">GAME OVER</h2>
+        <div class="result-panel">
+          <div class="result-item">
+            <div class="result-label">TIME</div>
+            <div id="final-time" class="result-value">0.0s</div>
+          </div>
+          <div class="result-item">
+            <div class="result-label">HIT</div>
+            <div id="final-hit" class="result-value">0</div>
+          </div>
+        </div>
+        <button id="retry-btn" class="neon-btn" type="button">RETRY</button>
+      </div>
+    </div>
+
+    <!-- 縦画面時の一時停止案内 -->
+    <div id="rotate-overlay" class="hidden">
+      <div class="rotate-icon"></div>
+      <p class="rotate-message">スマホを横にしてね</p>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================
+    // ゲーム設定（ここを書き換えてオリジナルに改造しよう！）
+    // =========================================================
+    const CONFIG = {
+      TITLE: "TOM'S COSMIC CHASE",     // ゲームタイトル
+      BG_COLOR_TOP: "#08031d",        // 背景の上側の色
+      BG_COLOR_BOTTOM: "#050b36",     // 背景の下側の色
+      PLAYER_COLOR: "#8da8ca",        // トムの宇宙船カラー
+      ENEMY_COLOR: "#9c5220",         // ジェリーのカラー
+      ENEMY_SPEED: 300,               // ジェリーの移動速度（1秒あたりのピクセル数）
+      ENEMY_SPAWN_INTERVAL: 0.9,      // ジェリーの出現間隔（秒）
+      STRONG_ENEMY_CHANCE: 0.32,      // 強いジェリーの出現確率（0.0〜1.0）
+      STRONG_ENEMY_HP: 3,             // 強いジェリーの耐久力（何回当てたら倒せるか）
+      BULLET_SPEED: 850,              // 星の弾の速さ（1秒あたりのピクセル数）
+      PLAYER_FOLLOW_SPEED: 16         // 移動追従速度（大きいほど指に素早く追従）
+    };
+
+    // =========================================================
+    // 固定ゲーム世界サイズ（960x540 / 16:9）
+    // =========================================================
+    const WORLD_WIDTH = 960;
+    const WORLD_HEIGHT = 540;
+    const PLAYER_MARGIN_Y = 50;
+
+    // DOM要素の取得
+    const appContainer = document.getElementById("app-container");
+    const gameStage = document.getElementById("game-stage");
+    const canvas = document.getElementById("game-canvas");
+    const ctx = canvas.getContext("2d");
+
+    const hud = document.getElementById("hud");
+    const hudTime = document.getElementById("hud-time");
+    const hudHit = document.getElementById("hud-hit");
+    const fireBtn = document.getElementById("fire-btn");
+
+    const titleScreen = document.getElementById("title-screen");
+    const gameTitleEl = document.getElementById("game-title");
+    const playBtn = document.getElementById("play-btn");
+    const fullscreenBtn = document.getElementById("fullscreen-btn");
+
+    const gameoverScreen = document.getElementById("gameover-screen");
+    const finalTimeEl = document.getElementById("final-time");
+    const finalHitEl = document.getElementById("final-hit");
+    const retryBtn = document.getElementById("retry-btn");
+
+    const rotateOverlay = document.getElementById("rotate-overlay");
+
+    // タイトル反映
+    gameTitleEl.textContent = CONFIG.TITLE;
+    document.title = CONFIG.TITLE;
+
+    // ゲーム状態管理
+    let gameState = "TITLE"; // "TITLE" | "PLAYING" | "GAMEOVER"
+    let isPortrait = false;
+    let lastTimestamp = 0;
+
+    let survivalTime = 0;
+    let hitCount = 0;
+    let spawnTimer = 0;
+    let shootCooldown = 0;
+
+    // プレイヤーオブジェクト（トムが乗る宇宙船）
+    const player = {
+      x: 140,
+      y: WORLD_HEIGHT / 2,
+      targetY: WORLD_HEIGHT / 2,
+      radius: 34
+    };
+
+    // ゲーム内エンティティ配列
+    let bullets = [];
+    let enemies = [];
+    let particles = [];
+    let stars = [];
+
+    // 入力管理
+    let movePointerId = null;
+    const keys = {
+      up: false,
+      down: false
+    };
+
+    // 背景の星を初期化
+    function initStars() {
+      stars = [];
+      for (let i = 0; i < 75; i++) {
+        stars.push({
+          x: Math.random() * WORLD_WIDTH,
+          y: Math.random() * WORLD_HEIGHT,
+          size: Math.random() * 2.5 + 0.8,
+          speed: Math.random() * 100 + 40,
+          alpha: Math.random() * 0.7 + 0.3
+        });
+      }
+    }
+
+    // =========================================================
+    // 画面リサイズ・アスペクト比維持・縦画面判定
+    // =========================================================
+    function checkOrientation() {
+      isPortrait = window.innerHeight > window.innerWidth;
+      if (isPortrait) {
+        rotateOverlay.classList.remove("hidden");
+      } else {
+        rotateOverlay.classList.add("hidden");
+      }
+    }
+
+    function resizeGame() {
+      const winW = window.innerWidth;
+      const winH = window.innerHeight;
+      const scale = Math.min(winW / WORLD_WIDTH, winH / WORLD_HEIGHT);
+      const displayW = Math.floor(WORLD_WIDTH * scale);
+      const displayH = Math.floor(WORLD_HEIGHT * scale);
+
+      gameStage.style.width = displayW + "px";
+      gameStage.style.height = displayH + "px";
+
+      checkOrientation();
+    }
+
+    // 画面のclientYをゲーム世界Y座標へ変換
+    function clientToGameY(clientY) {
+      const rect = gameStage.getBoundingClientRect();
+      if (rect.height <= 0) return WORLD_HEIGHT / 2;
+      const normalizedY = (clientY - rect.top) / rect.height;
+      const worldY = normalizedY * WORLD_HEIGHT;
+      return Math.max(PLAYER_MARGIN_Y, Math.min(WORLD_HEIGHT - PLAYER_MARGIN_Y, worldY));
+    }
+
+    // =========================================================
+    // Fullscreen API 設定
+    // =========================================================
+    function setupFullscreenButton() {
+      const canFullscreen =
+        document.fullscreenEnabled ||
+        document.webkitFullscreenEnabled ||
+        appContainer.requestFullscreen ||
+        appContainer.webkitRequestFullscreen;
+
+      if (!canFullscreen) {
+        fullscreenBtn.classList.add("hidden");
+        return;
+      }
+
+      fullscreenBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        try {
+          const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+          if (!fsElement) {
+            if (appContainer.requestFullscreen) {
+              await appContainer.requestFullscreen();
+            } else if (appContainer.webkitRequestFullscreen) {
+              await appContainer.webkitRequestFullscreen();
+            }
+          } else {
+            if (document.exitFullscreen) {
+              await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+              await document.webkitExitFullscreen();
+            }
+          }
+        } catch (err) {
+          console.warn("全画面表示を切り替えられませんでした:", err);
+        }
+      });
+
+      function updateFullscreenLabel() {
+        const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+        fullscreenBtn.textContent = fsElement ? "EXIT FULL SCREEN" : "FULL SCREEN";
+        resizeGame();
+      }
+
+      document.addEventListener("fullscreenchange", updateFullscreenLabel);
+      document.addEventListener("webkitfullscreenchange", updateFullscreenLabel);
+    }
+
+    // =========================================================
+    // ゲーム開始・リトライ・ゲームオーバー処理
+    // =========================================================
+    function startGame() {
+      gameState = "PLAYING";
+      survivalTime = 0;
+      hitCount = 0;
+      spawnTimer = 0;
+      shootCooldown = 0;
+      movePointerId = null;
+
+      player.y = WORLD_HEIGHT / 2;
+      player.targetY = WORLD_HEIGHT / 2;
+
+      bullets = [];
+      enemies = [];
+      particles = [];
+
+      updateHud();
+
+      titleScreen.classList.add("hidden");
+      gameoverScreen.classList.add("hidden");
+      hud.classList.remove("hidden");
+      fireBtn.classList.remove("hidden");
+    }
+
+    function triggerGameOver() {
+      gameState = "GAMEOVER";
+      movePointerId = null;
+
+      createExplosion(player.x, player.y, "#8fa3c4", 20);
+      createExplosion(player.x, player.y, "#ffea00", 25);
+
+      hud.classList.add("hidden");
+      fireBtn.classList.add("hidden");
+      finalTimeEl.textContent = survivalTime.toFixed(1) + "s";
+      finalHitEl.textContent = String(hitCount);
+      gameoverScreen.classList.remove("hidden");
+    }
+
+    function updateHud() {
+      hudTime.textContent = survivalTime.toFixed(1) + "s";
+      hudHit.textContent = String(hitCount);
+    }
+
+    // =========================================================
+    // 弾発射・敵出現・エフェクト
+    // =========================================================
+    function shootBullet() {
+      if (gameState !== "PLAYING" || isPortrait) return;
+      if (shootCooldown > 0) return;
+
+      bullets.push({
+        x: player.x + 42,
+        y: player.y + 6,
+        size: 15,
+        rotation: 0
+      });
+      shootCooldown = 0.12;
+    }
+
+    function spawnEnemy() {
+      const margin = 58;
+      const randomY = margin + Math.random() * (WORLD_HEIGHT - margin * 2);
+      const isStrong = Math.random() < CONFIG.STRONG_ENEMY_CHANCE;
+      const scale = isStrong ? 1.24 : 1.0;
+      const maxHp = isStrong ? CONFIG.STRONG_ENEMY_HP : 1;
+
+      enemies.push({
+        x: WORLD_WIDTH + 55,
+        y: randomY,
+        width: 52 * scale,
+        height: 48 * scale,
+        scale: scale,
+        isStrong: isStrong,
+        hp: maxHp,
+        maxHp: maxHp,
+        hitFlash: 0,
+        speedMultiplier: isStrong
+          ? 0.72 + Math.random() * 0.22
+          : 0.88 + Math.random() * 0.38,
+        bobPhase: Math.random() * Math.PI * 2
+      });
+    }
+
+    function createExplosion(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+        const speed = 80 + Math.random() * 240;
+        particles.push({
+          x: x,
+          y: y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 0.4 + Math.random() * 0.3,
+          maxLife: 0.7,
+          size: 3 + Math.random() * 6,
+          color: color,
+          isStar: Math.random() > 0.45
+        });
+      }
+    }
+
+    // =========================================================
+    // 入力イベント
+    // =========================================================
+    playBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      startGame();
+    });
+
+    retryBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      startGame();
+    });
+
+    fireBtn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      shootBullet();
+    });
+
+    appContainer.addEventListener("pointerdown", (e) => {
+      if (gameState !== "PLAYING" || isPortrait) return;
+      if (e.target.closest("button")) return;
+
+      if (movePointerId === null) {
+        movePointerId = e.pointerId;
+        player.targetY = clientToGameY(e.clientY);
+        shootBullet();
+      } else if (e.pointerId !== movePointerId) {
+        shootBullet();
+      }
+    });
+
+    window.addEventListener("pointermove", (e) => {
+      if (gameState !== "PLAYING" || isPortrait) return;
+      if (e.pointerId === movePointerId) {
+        player.targetY = clientToGameY(e.clientY);
+      }
+    });
+
+    function handlePointerEnd(e) {
+      if (e.pointerId === movePointerId) {
+        movePointerId = null;
+      }
+    }
+
+    window.addEventListener("pointerup", handlePointerEnd);
+    window.addEventListener("pointercancel", handlePointerEnd);
+
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (gameState === "PLAYING" && !isPortrait) {
+          shootBullet();
+        }
+      } else if (e.code === "ArrowUp" || e.code === "KeyW") {
+        keys.up = true;
+      } else if (e.code === "ArrowDown" || e.code === "KeyS") {
+        keys.down = true;
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "ArrowUp" || e.code === "KeyW") {
+        keys.up = false;
+      } else if (e.code === "ArrowDown" || e.code === "KeyS") {
+        keys.down = false;
+      }
+    });
+
+    // =========================================================
+    // 更新処理（dt秒ベース）
+    // =========================================================
+    function updateBackground(dt) {
+      for (const s of stars) {
+        s.x -= s.speed * dt;
+        if (s.x < 0) {
+          s.x = WORLD_WIDTH;
+          s.y = Math.random() * WORLD_HEIGHT;
+        }
+      }
+    }
+
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    function update(dt) {
+      updateBackground(dt);
+      updateParticles(dt);
+
+      if (gameState !== "PLAYING") return;
+
+      survivalTime += dt;
+      if (shootCooldown > 0) {
+        shootCooldown = Math.max(0, shootCooldown - dt);
+      }
+
+      // キーボード移動入力
+      const keyMoveSpeed = 480;
+      if (keys.up) {
+        player.targetY = Math.max(PLAYER_MARGIN_Y, player.targetY - keyMoveSpeed * dt);
+      }
+      if (keys.down) {
+        player.targetY = Math.min(WORLD_HEIGHT - PLAYER_MARGIN_Y, player.targetY + keyMoveSpeed * dt);
+      }
+
+      // トムの宇宙船の追従移動
+      const followRatio = 1 - Math.exp(-CONFIG.PLAYER_FOLLOW_SPEED * dt);
+      player.y += (player.targetY - player.y) * followRatio;
+
+      // 弾（星）の移動
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += CONFIG.BULLET_SPEED * dt;
+        b.rotation += Math.PI * 4 * dt;
+        if (b.x - b.size > WORLD_WIDTH) {
+          bullets.splice(i, 1);
+        }
+      }
+
+      // 敵（ジェリー）出現
+      spawnTimer += dt;
+      if (spawnTimer >= CONFIG.ENEMY_SPAWN_INTERVAL) {
+        spawnTimer -= CONFIG.ENEMY_SPAWN_INTERVAL;
+        spawnEnemy();
+      }
+
+      // 敵（ジェリー）の移動と当たり判定
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
+        enemy.x -= CONFIG.ENEMY_SPEED * enemy.speedMultiplier * dt;
+        enemy.bobPhase += dt * (enemy.isStrong ? 5.5 : 7);
+        if (enemy.hitFlash > 0) {
+          enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+        }
+
+        if (enemy.x + enemy.width < -45) {
+          enemies.splice(i, 1);
+          continue;
+        }
+
+        // 弾（星）とジェリーの当たり判定
+        let hitByBullet = false;
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          const b = bullets[j];
+          const dx = Math.abs(b.x - enemy.x);
+          const dy = Math.abs(b.y - enemy.y);
+          if (dx < enemy.width / 2 + b.size * 0.8 && dy < enemy.height / 2 + b.size * 0.8) {
+            bullets.splice(j, 1);
+            hitByBullet = true;
+            break;
+          }
+        }
+
+        if (hitByBullet) {
+          enemy.hp -= 1;
+          enemy.hitFlash = 0.14;
+          enemy.x += 14; // 被弾ノックバック
+
+          if (enemy.hp > 0) {
+            // まだ倒れない（バリアや装甲で耐えた火花エフェクト）
+            createExplosion(enemy.x - enemy.width * 0.35, enemy.y, "#00f3ff", 7);
+            createExplosion(enemy.x - enemy.width * 0.35, enemy.y, "#ffffff", 4);
+          } else {
+            // 撃破！
+            if (enemy.isStrong) {
+              createExplosion(enemy.x, enemy.y, "#ff2a85", 16);
+              createExplosion(enemy.x, enemy.y, "#ffea00", 20);
+              createExplosion(enemy.x, enemy.y, "#00f3ff", 10);
+            } else {
+              createExplosion(enemy.x, enemy.y, CONFIG.ENEMY_COLOR, 10);
+              createExplosion(enemy.x, enemy.y, "#ffea00", 12);
+            }
+            enemies.splice(i, 1);
+            hitCount += 1;
+            updateHud();
+            continue;
+          }
+        }
+
+        // トムとジェリーの当たり判定
+        const dx = Math.abs(player.x - enemy.x);
+        const dy = Math.abs(player.y - enemy.y);
+        if (dx < player.radius + enemy.width / 2 - 10 && dy < player.radius + enemy.height / 2 - 10) {
+          triggerGameOver();
+          return;
+        }
+      }
+
+      updateHud();
+    }
+
+    // =========================================================
+    // 描画処理（プレイヤー：トム、敵：ジェリー＆強いジェリー）
+    // =========================================================
+    function drawPlayer() {
+      if (gameState === "GAMEOVER") return;
+
+      ctx.save();
+      ctx.translate(player.x, player.y);
+
+      // 推進ジェット炎
+      const flameLen = 22 + Math.sin(Date.now() * 0.05) * 6;
+      const flameGrad = ctx.createLinearGradient(-45, 0, -45 - flameLen, 0);
+      flameGrad.addColorStop(0, "#ffffff");
+      flameGrad.addColorStop(0.3, "#ff5500");
+      flameGrad.addColorStop(0.7, "#ffea00");
+      flameGrad.addColorStop(1, "rgba(255, 100, 0, 0)");
+      ctx.fillStyle = flameGrad;
+      ctx.beginPath();
+      ctx.moveTo(-40, -12);
+      ctx.lineTo(-43 - flameLen, 0);
+      ctx.lineTo(-40, 12);
+      ctx.closePath();
+      ctx.fill();
+
+      // 宇宙船本体
+      ctx.shadowColor = "rgba(0, 243, 255, 0.35)";
+      ctx.shadowBlur = 10;
+
+      // 主翼（下側）
+      ctx.fillStyle = "#ff6699";
+      ctx.beginPath();
+      ctx.moveTo(-35, 12);
+      ctx.lineTo(-45, 38);
+      ctx.lineTo(-25, 38);
+      ctx.lineTo(-5, 18);
+      ctx.closePath();
+      ctx.fill();
+
+      // 尾翼
+      ctx.fillStyle = "#ff2a85";
+      ctx.beginPath();
+      ctx.moveTo(-32, -10);
+      ctx.lineTo(-48, -42);
+      ctx.lineTo(-32, -42);
+      ctx.lineTo(-12, -18);
+      ctx.closePath();
+      ctx.fill();
+
+      // 船体
+      const hullGrad = ctx.createLinearGradient(-40, 0, 45, 0);
+      hullGrad.addColorStop(0, CONFIG.PLAYER_COLOR);
+      hullGrad.addColorStop(0.5, "#b3c8e5");
+      hullGrad.addColorStop(1, "#f0f5fc");
+      ctx.fillStyle = hullGrad;
+      ctx.beginPath();
+      ctx.moveTo(-40, -16);
+      ctx.quadraticCurveTo(20, -22, 45, 0);
+      ctx.quadraticCurveTo(20, 22, -40, 16);
+      ctx.closePath();
+      ctx.fill();
+
+      // お星様ステッカー
+      ctx.fillStyle = "#ffea00";
+      drawStarShape(ctx, -15, -4, 5);
+      drawStarShape(ctx, -24, 6, 4);
+
+      // 丸いエンブレム
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(-26, -3, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#3a4f6e";
+      ctx.beginPath();
+      ctx.arc(-26, -3, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // パイロットのトム
+      ctx.shadowBlur = 0;
+      ctx.save();
+      ctx.translate(5, -6);
+
+      // トムの耳
+      ctx.fillStyle = "#5c7394";
+      ctx.beginPath();
+      ctx.moveTo(-15, -15);
+      ctx.lineTo(-11, -30);
+      ctx.lineTo(-3, -15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#ff94b8";
+      ctx.beginPath();
+      ctx.moveTo(-13, -16);
+      ctx.lineTo(-10, -26);
+      ctx.lineTo(-5, -16);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "#5c7394";
+      ctx.beginPath();
+      ctx.moveTo(-2, -15);
+      ctx.lineTo(4, -29);
+      ctx.lineTo(9, -13);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#ff94b8";
+      ctx.beginPath();
+      ctx.moveTo(-1, -15);
+      ctx.lineTo(3, -25);
+      ctx.lineTo(7, -14);
+      ctx.closePath();
+      ctx.fill();
+
+      // トムの頭
+      ctx.fillStyle = "#5c7394";
+      ctx.beginPath();
+      ctx.arc(0, 0, 13, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 頬の白い毛
+      ctx.fillStyle = "#eef4fa";
+      ctx.beginPath();
+      ctx.ellipse(-10, 3, 7, 5, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(10, 3, 7, 5, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // トムの目（黄色い白目＋緑の瞳）
+      ctx.fillStyle = "#ffea00";
+      ctx.beginPath();
+      ctx.ellipse(-4, -3, 4, 6, -0.1, 0, Math.PI * 2);
+      ctx.ellipse(4, -3, 4, 6, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#4caf50";
+      ctx.beginPath();
+      ctx.ellipse(-3, -2, 2, 4, -0.1, 0, Math.PI * 2);
+      ctx.ellipse(3, -2, 2, 4, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#000000";
+      ctx.beginPath();
+      ctx.ellipse(-3.2, -2, 0.9, 2.5, -0.1, 0, Math.PI * 2);
+      ctx.ellipse(2.8, -2, 0.9, 2.5, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      // マズル・鼻・口
+      ctx.fillStyle = "#eef4fa";
+      ctx.beginPath();
+      ctx.arc(-3, 5, 4, 0, Math.PI * 2);
+      ctx.arc(3, 5, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ff2a85";
+      ctx.beginPath();
+      ctx.moveTo(-2, 2);
+      ctx.lineTo(2, 2);
+      ctx.lineTo(0, 5.5);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "#243242";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(-2.5, 4, 3, 0, Math.PI, false);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(2.5, 4, 3, 0, Math.PI, false);
+      ctx.stroke();
+
+      ctx.restore();
+
+      // 透明キャノピー
+      ctx.fillStyle = "rgba(0, 243, 255, 0.22)";
+      ctx.strokeStyle = "rgba(200, 255, 255, 0.65)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(4, -5, 25, -Math.PI * 0.95, Math.PI * 0.22);
+      ctx.quadraticCurveTo(28, 4, 2, 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(4, -5, 21, -Math.PI * 0.8, -Math.PI * 0.5);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawBullets() {
+      ctx.save();
+      ctx.shadowColor = "#ffea00";
+      ctx.shadowBlur = 12;
+
+      for (const b of bullets) {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.rotation);
+
+        ctx.fillStyle = "#ffea00";
+        drawStarShape(ctx, 0, 0, b.size);
+
+        ctx.fillStyle = "#ffffff";
+        drawStarShape(ctx, 0, 0, b.size * 0.45);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    // 敵：通常ジェリー ＆ バリア装甲付きの強いジェリー
+    function drawEnemies() {
+      for (const enemy of enemies) {
+        ctx.save();
+        const bobOffset = Math.sin(enemy.bobPhase) * 3;
+        ctx.translate(enemy.x, enemy.y + bobOffset);
+        ctx.scale(enemy.scale, enemy.scale);
+
+        // 強いジェリーのオーラ＆エネルギーシールド（残りHP > 1 のとき強く光る）
+        if (enemy.isStrong) {
+          const shieldRatio = enemy.hp / enemy.maxHp;
+          ctx.save();
+          ctx.shadowColor = enemy.hp > 1 ? "#ff2a85" : "#ffaa00";
+          ctx.shadowBlur = 18;
+          ctx.strokeStyle = enemy.hp > 1
+            ? `rgba(255, 60, 150, ${0.45 + shieldRatio * 0.45})`
+            : "rgba(255, 190, 40, 0.55)";
+          ctx.fillStyle = enemy.hp > 1
+            ? "rgba(255, 42, 133, 0.12)"
+            : "rgba(255, 170, 0, 0.08)";
+          ctx.lineWidth = enemy.hp > 1 ? 2.6 : 1.5;
+          ctx.beginPath();
+          ctx.ellipse(-2, -1, 33, 30, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 1. ポッド右側のジェット噴射炎
+        const flameLen = (enemy.isStrong ? 20 : 14) + Math.sin(enemy.bobPhase * 2) * 5;
+        const jetGrad = ctx.createLinearGradient(18, 10, 18 + flameLen, 10);
+        jetGrad.addColorStop(0, "#ffffff");
+        jetGrad.addColorStop(0.4, enemy.isStrong ? "#ff2a85" : "#ff9900");
+        jetGrad.addColorStop(1, "rgba(255, 80, 0, 0)");
+        ctx.fillStyle = jetGrad;
+        ctx.beginPath();
+        ctx.moveTo(18, 4);
+        ctx.lineTo(18 + flameLen, 10);
+        ctx.lineTo(18, 16);
+        ctx.closePath();
+        ctx.fill();
+
+        // 2. ジェリーの大きな丸い耳（奥側・左）
+        ctx.fillStyle = "#7d3e14";
+        ctx.beginPath();
+        ctx.arc(-11, -15, 9.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f2a285";
+        ctx.beginPath();
+        ctx.arc(-11, -15, 5.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. ジェリーの顔・頭（茶色＋タン色のマズル）
+        ctx.fillStyle = CONFIG.ENEMY_COLOR;
+        ctx.beginPath();
+        ctx.arc(-1, -4, 12.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 明るいタン色の頬と口元
+        ctx.fillStyle = "#f5caa0";
+        ctx.beginPath();
+        ctx.ellipse(-7, -1, 8.5, 6.2, -0.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-1, 1, 7.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 4. ジェリーの大きな丸い耳（手前側・右）
+        ctx.fillStyle = CONFIG.ENEMY_COLOR;
+        ctx.beginPath();
+        ctx.arc(9, -13, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f5ab8e";
+        ctx.beginPath();
+        ctx.arc(9, -13, 6.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 5. ジェリーの大きな目（左向き）
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.ellipse(-10.5, -6.5, 2.6, 4.6, -0.08, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#111111";
+        ctx.beginPath();
+        ctx.ellipse(-11, -6.5, 1.5, 3, -0.08, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.ellipse(-4.5, -6.5, 3.2, 5.2, 0.05, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#111111";
+        ctx.beginPath();
+        ctx.ellipse(-5.2, -6.5, 1.9, 3.4, 0.05, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(-5.8, -8, 0.9, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 強いジェリーは赤いサイバーゴーグルを装着！
+        if (enemy.isStrong) {
+          ctx.fillStyle = "rgba(255, 30, 100, 0.55)";
+          ctx.strokeStyle = "#ffea00";
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.roundRect(-13.5, -10.5, 13.5, 6.5, 2.5);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          // 通常ジェリーのいたずらっぽい眉
+          ctx.strokeStyle = "#4a2208";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(-12.5, -11.5);
+          ctx.quadraticCurveTo(-10, -13.5, -8, -11.5);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-7, -12.5);
+          ctx.quadraticCurveTo(-4, -14.5, -1.5, -12);
+          ctx.stroke();
+        }
+
+        // 小さな黒い鼻
+        ctx.fillStyle = "#1a0d05";
+        ctx.beginPath();
+        ctx.arc(-14.2, -2.2, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ニヤッと笑う口元
+        ctx.strokeStyle = "#5c2b0c";
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.arc(-8.5, 0.5, 4.5, 0.25, Math.PI * 0.85);
+        ctx.stroke();
+
+        // ヒゲ
+        ctx.strokeStyle = "#4a2208";
+        ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(-7, 0);
+        ctx.lineTo(-1, -2);
+        ctx.moveTo(-7, 2);
+        ctx.lineTo(-1, 2);
+        ctx.stroke();
+
+        // 6. 透明な宇宙バブルヘルメット
+        ctx.fillStyle = enemy.isStrong
+          ? "rgba(255, 120, 190, 0.18)"
+          : "rgba(150, 245, 255, 0.18)";
+        ctx.strokeStyle = enemy.isStrong
+          ? "rgba(255, 180, 220, 0.85)"
+          : "rgba(210, 252, 255, 0.72)";
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(-1, -6, 21.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // ヘルメットの光沢ライン
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(-1, -6, 17.5, -Math.PI * 0.82, -Math.PI * 0.52);
+        ctx.stroke();
+
+        // 7. ジェリーが乗っているチーズ型ミニ宇宙ポッド
+        ctx.shadowColor = enemy.isStrong ? "rgba(255, 42, 133, 0.6)" : "rgba(255, 210, 0, 0.5)";
+        ctx.shadowBlur = 10;
+        const cheeseGrad = ctx.createLinearGradient(-24, 4, 20, 22);
+        if (enemy.isStrong) {
+          // 強いジェリーは重装甲メタリック＆ゴールドポッド
+          cheeseGrad.addColorStop(0, "#ff8800");
+          cheeseGrad.addColorStop(0.5, "#ff3366");
+          cheeseGrad.addColorStop(1, "#6b1535");
+        } else {
+          cheeseGrad.addColorStop(0, "#ffe44d");
+          cheeseGrad.addColorStop(1, "#ffaa00");
+        }
+        ctx.fillStyle = cheeseGrad;
+        ctx.beginPath();
+        ctx.moveTo(-25, 11);
+        ctx.lineTo(18, 3);
+        ctx.lineTo(21, 19);
+        ctx.lineTo(-21, 21);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = enemy.isStrong ? "#ffea00" : "#cc7a00";
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+
+        // チーズの穴（強いジェリーはサイバーリベット）
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = enemy.isStrong ? "#ffea00" : "#d98800";
+        ctx.beginPath();
+        ctx.arc(-6, 13, 3.2, 0, Math.PI * 2);
+        ctx.arc(8, 11, 3.8, 0, Math.PI * 2);
+        ctx.arc(2, 17, 2.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 被弾時の白フラッシュ演出
+        if (enemy.hitFlash > 0) {
+          ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.75, enemy.hitFlash * 5)})`;
+          ctx.beginPath();
+          ctx.arc(-1, -2, 26, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 強いジェリーの頭上HPゲージ
+        if (enemy.isStrong) {
+          const barW = 34;
+          const barH = 5;
+          const barX = -barW / 2 - 1;
+          const barY = -34;
+
+          ctx.fillStyle = "rgba(10, 14, 30, 0.85)";
+          ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+
+          const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
+          ctx.fillStyle = enemy.hp > 1 ? "#ff2a85" : "#ffea00";
+          ctx.fillRect(barX, barY, barW * hpRatio, barH);
+
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 0.8;
+          ctx.strokeRect(barX - 1, barY - 1, barW + 2, barH + 2);
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        const alpha = Math.max(0, p.life / p.maxLife);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 10;
+
+        if (p.isStar) {
+          drawStarShape(ctx, p.x, p.y, p.size * 1.5);
+        } else {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    // 星型を描画するユーティリティ関数
+    function drawStarShape(canvasCtx, cx, cy, r, spikes = 5, outerRadius = r, innerRadius = r / 2.2) {
+      let rot = (Math.PI / 2) * 3;
+      let x = cx;
+      let y = cy;
+      let step = Math.PI / spikes;
+
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(cx, cy - outerRadius);
+      for (let i = 0; i < spikes; i++) {
+        x = cx + Math.cos(rot) * outerRadius;
+        y = cy + Math.sin(rot) * outerRadius;
+        canvasCtx.lineTo(x, y);
+        rot += step;
+
+        x = cx + Math.cos(rot) * innerRadius;
+        y = cy + Math.sin(rot) * innerRadius;
+        canvasCtx.lineTo(x, y);
+        rot += step;
+      }
+      canvasCtx.lineTo(cx, cy - outerRadius);
+      canvasCtx.closePath();
+      canvasCtx.fill();
+    }
+
+    function drawBackground() {
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, WORLD_HEIGHT);
+      bgGrad.addColorStop(0, CONFIG.BG_COLOR_TOP);
+      bgGrad.addColorStop(1, CONFIG.BG_COLOR_BOTTOM);
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+      // 宇宙の星雲演出
+      ctx.globalAlpha = 0.3;
+      const cloudGrad = ctx.createRadialGradient(
+        WORLD_WIDTH * 0.7,
+        WORLD_HEIGHT * 0.3,
+        50,
+        WORLD_WIDTH * 0.75,
+        WORLD_HEIGHT * 0.3,
+        300
+      );
+      cloudGrad.addColorStop(0, "#4a125c");
+      cloudGrad.addColorStop(0.5, "#150a36");
+      cloudGrad.addColorStop(1, "transparent");
+      ctx.fillStyle = cloudGrad;
+      ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+      ctx.globalAlpha = 1.0;
+
+      // 遠景の惑星
+      ctx.fillStyle = "#332a61";
+      ctx.beginPath();
+      ctx.arc(750, 100, 32, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#4d3d8c";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(750, 100, 48, 12, -0.2, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = "#1e2e5a";
+      ctx.beginPath();
+      ctx.arc(150, 460, 22, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 流れるお星様
+      for (const s of stars) {
+        ctx.fillStyle = `rgba(255, 255, 230, ${s.alpha})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function draw() {
+      drawBackground();
+      drawParticles();
+      drawBullets();
+      drawEnemies();
+      drawPlayer();
+    }
+
+    // =========================================================
+    // メインゲームループ（requestAnimationFrame）
+    // =========================================================
+    function gameLoop(timestamp) {
+      if (!lastTimestamp) {
+        lastTimestamp = timestamp;
+      }
+      const rawDt = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+      const dt = Math.min(rawDt, 0.05);
+
+      if (!isPortrait) {
+        if (gameState === "PLAYING") {
+          update(dt);
+        } else {
+          updateBackground(dt);
+          updateParticles(dt);
+        }
+      }
+
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 初期化実行
+    window.addEventListener("resize", resizeGame);
+    window.addEventListener("orientationchange", () => {
+      resizeGame();
+      setTimeout(resizeGame, 120);
+    });
+
+    initStars();
+    setupFullscreenButton();
+    resizeGame();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
